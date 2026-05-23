@@ -1,0 +1,3 @@
+[submodule "custom_components/dyson_local/libdyson"]
+	path = libdyson
+	url = https://github.com/vwt12eh8/libdyson.git
