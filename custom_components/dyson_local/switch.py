@@ -2,16 +2,15 @@
 
 from typing import Callable
 
-from libdyson import DysonPureHotCoolLink
-
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_NAME
+from homeassistant.const import CONF_NAME, EntityCategory
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import EntityCategory
 
 from . import DysonEntity
 from .const import DATA_DEVICES, DOMAIN
+from .libdyson import DysonPureHotCoolLink
+from .libdyson.dyson_device import DysonFanDevice
 
 
 async def async_setup_entry(
@@ -32,12 +31,8 @@ async def async_setup_entry(
 class DysonNightModeSwitchEntity(DysonEntity, SwitchEntity):
     """Dyson fan night mode switch."""
 
-    _attr_entity_category = EntityCategory.CONFIG
-
-    @property
-    def sub_name(self):
-        """Return the name of the entity."""
-        return "Night Mode"
+    _attr_translation_key = "night_mode"
+    _device: DysonFanDevice
 
     @property
     def sub_unique_id(self):
@@ -67,11 +62,8 @@ class DysonContinuousMonitoringSwitchEntity(DysonEntity, SwitchEntity):
     """Dyson fan continuous monitoring."""
 
     _attr_entity_category = EntityCategory.CONFIG
-
-    @property
-    def sub_name(self):
-        """Return the name of the entity."""
-        return "Continuous Monitoring"
+    _attr_translation_key = "continuous_monitoring"
+    _device: DysonFanDevice
 
     @property
     def sub_unique_id(self):
@@ -100,11 +92,11 @@ class DysonContinuousMonitoringSwitchEntity(DysonEntity, SwitchEntity):
 class DysonFocusModeSwitchEntity(DysonEntity, SwitchEntity):
     """Dyson Pure Hot+Cool Link focus mode switch."""
 
-    _attr_entity_category = EntityCategory.CONFIG
     _attr_icon = "mdi:image-filter-center-focus"
+    _device: DysonPureHotCoolLink
 
     @property
-    def sub_name(self):
+    def name(self):
         """Return the name of the entity."""
         return "Focus Mode"
 

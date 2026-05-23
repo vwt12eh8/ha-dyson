@@ -4,39 +4,27 @@ import asyncio
 from datetime import timedelta
 from functools import partial
 import logging
-from typing import List, Optional
-
-from libdyson import (
-    Dyson360Eye,
-    Dyson360Heurist,
-    DysonPureHotCool,
-    DysonPureHotCoolLink,
-    DysonPureHumidifyCool,
-    DysonPurifierHumidifyCoolFormaldehyde,
-    MessageType,
-    get_device,
-)
-from libdyson.discovery import DysonDiscovery
-from libdyson.dyson_device import DysonDevice
-from libdyson.exceptions import DysonException
+from typing import List
 
 from homeassistant.components.zeroconf import async_get_instance
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import Entity
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.helpers.update_coordinator import (DataUpdateCoordinator,
+                                                      UpdateFailed)
 
-from .const import (
-    CONF_CREDENTIAL,
-    CONF_DEVICE_TYPE,
-    CONF_SERIAL,
-    DATA_COORDINATORS,
-    DATA_DEVICES,
-    DATA_DISCOVERY,
-    DOMAIN,
-)
+from .const import (CONF_CREDENTIAL, CONF_DEVICE_TYPE, CONF_SERIAL,
+                    DATA_COORDINATORS, DATA_DEVICES, DATA_DISCOVERY, DOMAIN)
+from .libdyson import (Dyson360Eye, Dyson360Heurist, DysonPureHotCool,
+                       DysonPureHotCoolLink, DysonPureHumidifyCool,
+                       DysonPurifierHumidifyCoolFormaldehyde, MessageType,
+                       get_device)
+from .libdyson.discovery import DysonDiscovery
+from .libdyson.dyson_device import DysonDevice, DysonFanDevice
+from .libdyson.exceptions import DysonException
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -60,8 +48,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         entry.data[CONF_CREDENTIAL],
         entry.data[CONF_DEVICE_TYPE],
     )
+    if not device:
+        return False
 
-    if not isinstance(device, Dyson360Eye) and not isinstance(device, Dyson360Heurist):
+    if isinstance(device, DysonFanDevice):
         # Set up coordinator
         async def async_update_data():
             """Poll environmental data from the device."""
@@ -81,15 +71,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         coordinator = None
 
     async def _async_forward_entry_setup():
-        for component in _async_get_platforms(device):
-            hass.async_create_task(
-                hass.config_entries.async_forward_entry_setup(entry, component)
-            )
+        components = _async_get_platforms(device)
+        hass.async_create_task(
+            hass.config_entries.async_forward_entry_setups(entry, components)
+        )
 
-    def setup_entry(host: str, is_discovery: bool = True) -> bool:
+    def setup_entry(host: str, is_discovery: bool = True):
         try:
             device.connect(host)
-        except DysonException:
+        except DysonException as ex:
             if is_discovery:
                 _LOGGER.error(
                     "Failed to connect to device %s at %s",
@@ -97,7 +87,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     host,
                 )
                 return
-            raise ConfigEntryNotReady
+            raise ConfigEntryNotReady from ex
         hass.data[DOMAIN][DATA_DEVICES][entry.entry_id] = device
         hass.data[DOMAIN][DATA_COORDINATORS][entry.entry_id] = coordinator
         asyncio.run_coroutine_threadsafe(
@@ -167,6 +157,7 @@ def _async_get_platforms(device: DysonDevice) -> List[str]:
 class DysonEntity(Entity):
     """Dyson entity base class."""
 
+    _attr_has_entity_name = True
     _MESSAGE_TYPE = MessageType.STATE
 
     def __init__(self, device: DysonDevice, name: str):
@@ -188,18 +179,6 @@ class DysonEntity(Entity):
         return False
 
     @property
-    def name(self) -> str:
-        """Return the name of the entity."""
-        if self.sub_name is None:
-            return self._name
-        return f"{self._name} {self.sub_name}"
-
-    @property
-    def sub_name(self) -> Optional[str]:
-        """Return sub name of the entity."""
-        return None
-
-    @property
     def unique_id(self) -> str:
         """Return the entity unique id."""
         if self.sub_unique_id is None:
@@ -207,16 +186,16 @@ class DysonEntity(Entity):
         return f"{self._device.serial}-{self.sub_unique_id}"
 
     @property
-    def sub_unique_id(self) -> str:
+    def sub_unique_id(self) -> str | None:
         """Return the entity sub unique id."""
         return None
 
     @property
-    def device_info(self) -> dict:
+    def device_info(self):
         """Return device info of the entity."""
-        return {
-            "identifiers": {(DOMAIN, self._device.serial)},
-            "name": self._name,
-            "manufacturer": "Dyson",
-            "model": self._device.device_type,
-        }
+        return DeviceInfo(
+            identifiers={(DOMAIN, self._device.serial)},
+            name=self._name,
+            manufacturer="Dyson",
+            model=self._device.device_type,
+        )

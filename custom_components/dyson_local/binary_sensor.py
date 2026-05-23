@@ -2,19 +2,18 @@
 
 from typing import Callable
 
-from libdyson import Dyson360Eye, Dyson360Heurist, DysonPureHotCoolLink
-
 from homeassistant.components.binary_sensor import (
-    DEVICE_CLASS_BATTERY_CHARGING,
+    BinarySensorDeviceClass,
     BinarySensorEntity,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_NAME
+from homeassistant.const import CONF_NAME, EntityCategory
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import EntityCategory
 
 from . import DysonEntity
 from .const import DATA_DEVICES, DOMAIN
+from .libdyson import Dyson360Eye, Dyson360Heurist, DysonPureHotCoolLink
+from .libdyson.dyson_vacuum_device import DysonVacuumDevice
 
 ICON_BIN_FULL = "mdi:delete-variant"
 
@@ -44,6 +43,7 @@ class DysonVacuumBatteryChargingSensor(DysonEntity, BinarySensorEntity):
     """Dyson vacuum battery charging sensor."""
 
     _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _device: DysonVacuumDevice
 
     @property
     def is_on(self) -> bool:
@@ -51,14 +51,9 @@ class DysonVacuumBatteryChargingSensor(DysonEntity, BinarySensorEntity):
         return self._device.is_charging
 
     @property
-    def device_class(self) -> str:
+    def device_class(self) -> BinarySensorDeviceClass:
         """Return the device class of the sensor."""
-        return DEVICE_CLASS_BATTERY_CHARGING
-
-    @property
-    def sub_name(self) -> str:
-        """Return the name of the sensor."""
-        return "Battery Charging"
+        return BinarySensorDeviceClass.BATTERY_CHARGING
 
     @property
     def sub_unique_id(self):
@@ -69,7 +64,9 @@ class DysonVacuumBatteryChargingSensor(DysonEntity, BinarySensorEntity):
 class Dyson360HeuristBinFullSensor(DysonEntity, BinarySensorEntity):
     """Dyson 360 Heurist bin full sensor."""
 
+    _attr_device_class = BinarySensorDeviceClass.PROBLEM
     _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _device: Dyson360Heurist
 
     @property
     def is_on(self) -> bool:
@@ -82,9 +79,9 @@ class Dyson360HeuristBinFullSensor(DysonEntity, BinarySensorEntity):
         return ICON_BIN_FULL
 
     @property
-    def sub_name(self) -> str:
+    def name(self) -> str:
         """Return the name of the sensor."""
-        return "Bin Full"
+        return "Bin full"
 
     @property
     def sub_unique_id(self):
@@ -97,14 +94,15 @@ class DysonPureHotCoolLinkTiltSensor(DysonEntity, BinarySensorEntity):
 
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_icon = "mdi:angle-acute"
+    _device: DysonPureHotCoolLink
 
     @property
-    def is_on(self) -> bool:
+    def is_on(self) -> bool | None:
         """Return if the sensor is on."""
         return self._device.tilt
 
     @property
-    def sub_name(self) -> str:
+    def name(self) -> str:
         """Return the name of the sensor."""
         return "Tilt"
 

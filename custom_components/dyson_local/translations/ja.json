@@ -1,0 +1,81 @@
+{
+  "config": {
+    "flow_title": "Dyson: {name} ({serial})",
+    "step": {
+      "user": {
+        "data": {
+          "method": "Setup method"
+        }
+      },
+      "wifi": {
+        "description": "Find your device WiFi information from the sticker on your device body or user's manual. Don't fill in your home WiFi info.",
+        "data": {
+          "ssid": "Device WiFi SSID",
+          "password": "Device WiFi Password",
+          "host": "Host (Optional)"
+        }
+      },
+      "manual": {
+        "data": {
+          "serial": "Serial",
+          "credential": "Credential",
+          "host": "Host (Optional)",
+          "device_type": "Device Type"
+        }
+      },
+      "host": {
+        "data": {
+          "host": "Host (Optional)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "接続に失敗しました",
+      "cannot_find": "Failed to find the device using discovery",
+      "invalid_auth": "Invalid authentication",
+      "cannot_parse_wifi_info": "Failed to parse device WiFi information"
+    },
+    "abort": {
+      "already_configured": "Device already configured"
+    }
+  },
+  "entity": {
+    "select": {
+      "oscillation_mode": {
+        "name": "首振り",
+        "state": {
+          "45°": "45°",
+          "90°": "90°",
+          "Breeze": "ブリーズ"
+        }
+      },
+      "water_hardness": {
+        "name": "水の硬度",
+        "state": {
+          "Soft": "軟水",
+          "Medium": "中硬水",
+          "Hard": "硬水"
+        }
+      }
+    },
+    "sensor": {
+      "filter_life": {
+        "name": "フィルタ残量"
+      },
+      "hcho": {
+        "name": "ホルムアルデヒド(HCHO)"
+      },
+      "next_deep_clean": {
+        "name": "次回加湿手入れ"
+      }
+    },
+    "switch": {
+      "continuous_monitoring": {
+        "name": "継続モニタリング"
+      },
+      "night_mode": {
+        "name": "ナイトモード"
+      }
+    }
+  }
+}

@@ -2,24 +2,17 @@
 
 from typing import Callable
 
-from libdyson import (
-    DysonPureCoolLink,
-    DysonPureHotCoolLink,
-    DysonPureHumidifyCool,
-    DysonPurifierHumidifyCoolFormaldehyde,
-    HumidifyOscillationMode,
-    WaterHardness,
-)
-from libdyson.const import AirQualityTarget
-
 from homeassistant.components.select import SelectEntity
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_NAME
+from homeassistant.const import CONF_NAME, EntityCategory
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import EntityCategory
 
 from . import DysonEntity
 from .const import DATA_DEVICES, DOMAIN
+from .libdyson import (DysonPureCoolLink, DysonPureHumidifyCool,
+                       HumidifyOscillationMode, WaterHardness)
+from .libdyson.const import AirQualityTarget
+from .libdyson.dyson_pure_humidify_cool import DysonPurifierHumidifyCoolFormaldehyde
 
 AIR_QUALITY_TARGET_ENUM_TO_STR = {
     AirQualityTarget.OFF: "Off",
@@ -62,9 +55,7 @@ async def async_setup_entry(
     device = hass.data[DOMAIN][DATA_DEVICES][config_entry.entry_id]
     name = config_entry.data[CONF_NAME]
     entities = []
-    if isinstance(device, DysonPureHotCoolLink) or isinstance(
-        device, DysonPureCoolLink
-    ):
+    if isinstance(device, DysonPureCoolLink):
         entities.append(DysonAirQualitySelect(device, name))
     if isinstance(device, DysonPureHumidifyCool) or isinstance(
         device, DysonPurifierHumidifyCoolFormaldehyde):
@@ -82,18 +73,22 @@ class DysonAirQualitySelect(DysonEntity, SelectEntity):
 
     _attr_entity_category = EntityCategory.CONFIG
     _attr_options = list(AIR_QUALITY_TARGET_STR_TO_ENUM.keys())
+    _device: DysonPureCoolLink
 
     @property
-    def current_option(self) -> str:
+    def current_option(self) -> str | None:
         """Return the current selected option."""
-        return AIR_QUALITY_TARGET_ENUM_TO_STR[self._device.air_quality_target]
+        value = self._device.air_quality_target
+        if value is None:
+            return None
+        return AIR_QUALITY_TARGET_ENUM_TO_STR[value]
 
     def select_option(self, option: str) -> None:
         """Configure the new selected option."""
         self._device.set_air_quality_target(AIR_QUALITY_TARGET_STR_TO_ENUM[option])
 
     @property
-    def sub_name(self) -> str:
+    def name(self) -> str:
         """Return the name of the select."""
         return "Air Quality"
 
@@ -106,23 +101,22 @@ class DysonAirQualitySelect(DysonEntity, SelectEntity):
 class DysonOscillationModeSelect(DysonEntity, SelectEntity):
     """Oscillation mode for supported models."""
 
-    _attr_entity_category = EntityCategory.CONFIG
     _attr_icon = "mdi:sync"
     _attr_options = list(OSCILLATION_MODE_STR_TO_ENUM.keys())
+    _attr_translation_key = "oscillation_mode"
+    _device: DysonPureHumidifyCool
 
     @property
-    def current_option(self) -> str:
+    def current_option(self) -> str | None:
         """Return the current selected option."""
-        return OSCILLATION_MODE_ENUM_TO_STR[self._device.oscillation_mode]
+        value = self._device.oscillation_mode
+        if value is None:
+            return None
+        return OSCILLATION_MODE_ENUM_TO_STR[value]
 
     def select_option(self, option: str) -> None:
         """Configure the new selected option."""
         self._device.enable_oscillation(OSCILLATION_MODE_STR_TO_ENUM[option])
-
-    @property
-    def sub_name(self) -> str:
-        """Return the name of the select."""
-        return "Oscillation Mode"
 
     @property
     def sub_unique_id(self):
@@ -135,21 +129,21 @@ class DysonWaterHardnessSelect(DysonEntity, SelectEntity):
 
     _attr_entity_category = EntityCategory.CONFIG
     _attr_icon = "mdi:water-opacity"
-    _attr_options = list(WATER_HARDNESS_STR_TO_ENUM.keys())
+    _attr_options = list(WATER_HARDNESS_STR_TO_ENUM)
+    _attr_translation_key = "water_hardness"
+    _device: DysonPureHumidifyCool
 
     @property
-    def current_option(self) -> str:
+    def current_option(self) -> str | None:
         """Configure the new selected option."""
-        return WATER_HARDNESS_ENUM_TO_STR[self._device.water_hardness]
+        value = self._device.water_hardness
+        if value is None:
+            return None
+        return WATER_HARDNESS_ENUM_TO_STR[value]
 
     def select_option(self, option: str) -> None:
         """Configure the new selected option."""
         self._device.set_water_hardness(WATER_HARDNESS_STR_TO_ENUM[option])
-
-    @property
-    def sub_name(self) -> str:
-        """Return the name of the select."""
-        return "Water Hardness"
 
     @property
     def sub_unique_id(self):

@@ -1,25 +1,27 @@
 """Utilities for Dyson Local."""
 
-from typing import Any, Optional
+from typing import overload
 
-from libdyson.const import ENVIRONMENTAL_FAIL, ENVIRONMENTAL_INIT, ENVIRONMENTAL_OFF
-
-from homeassistant.const import STATE_OFF
-
-STATE_INIT = "init"
-STATE_FAIL = "fail"
+from .libdyson.const import Environmental
 
 
-class environmental_property(property):
-    """Environmental status property."""
+def is_available(value: int | float | Environmental | None):
+    return value not in (Environmental.OFF, Environmental.FAIL)
 
-    def __get__(self, obj: Any, type: Optional[type] = ...) -> Any:
-        """Get environmental property value."""
-        value = super().__get__(obj, type)
-        if value == ENVIRONMENTAL_OFF:
-            return STATE_OFF
-        elif value == ENVIRONMENTAL_INIT:
-            return STATE_INIT
-        elif value == ENVIRONMENTAL_FAIL:
-            return STATE_FAIL
-        return value
+
+@overload
+def filter_unavailable(value: int | Environmental | None) -> int | None:
+    ...
+
+
+@overload
+def filter_unavailable(value: float | Environmental | None) -> float | None:
+    ...
+
+
+def filter_unavailable(value: int | float | Environmental | None):
+    if not is_available(value):
+        return None
+    if isinstance(value, Environmental):
+        return None
+    return value

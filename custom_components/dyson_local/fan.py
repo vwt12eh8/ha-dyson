@@ -2,33 +2,26 @@
 
 import logging
 import math
-from typing import Any, Callable, List, Mapping, Optional
+from typing import Any, Callable, Mapping, Optional
 
-from libdyson import DysonPureCool, DysonPureCoolLink, MessageType
 import voluptuous as vol
-
-from homeassistant.components.fan import (
-    DIRECTION_FORWARD,
-    DIRECTION_REVERSE,
-    SUPPORT_DIRECTION,
-    SUPPORT_OSCILLATE,
-    SUPPORT_PRESET_MODE,
-    SUPPORT_SET_SPEED,
-    FanEntity,
-    NotValidPresetModeError,
-)
+from homeassistant.components.fan import (DIRECTION_FORWARD, DIRECTION_REVERSE,
+                                          FanEntity, FanEntityFeature,
+                                          NotValidPresetModeError)
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_NAME
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import config_validation as cv, entity_platform
-from homeassistant.util.percentage import (
-    int_states_in_range,
-    percentage_to_ranged_value,
-    ranged_value_to_percentage,
-)
+from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers import entity_platform
+from homeassistant.util.percentage import (percentage_to_ranged_value,
+                                           ranged_value_to_percentage)
+from homeassistant.util.scaling import int_states_in_range
 
 from . import DOMAIN, DysonEntity
 from .const import DATA_DEVICES
+from .libdyson import DysonPureCool, DysonPureCoolLink, MessageType
+from .libdyson.dyson_device import DysonFanDevice
+from .libdyson.dyson_pure_cool import DysonPureCoolBase
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -39,22 +32,19 @@ ATTR_TIMER = "timer"
 SERVICE_SET_ANGLE = "set_angle"
 SERVICE_SET_TIMER = "set_timer"
 
-SET_ANGLE_SCHEMA = {
-    vol.Required(ATTR_ANGLE_LOW): cv.positive_int,
-    vol.Required(ATTR_ANGLE_HIGH): cv.positive_int,
-}
-
-SET_TIMER_SCHEMA = {
-    vol.Required(ATTR_TIMER): cv.positive_int,
-}
-
 PRESET_MODE_AUTO = "Auto"
 
 SUPPORTED_PRESET_MODES = [PRESET_MODE_AUTO]
 
 SPEED_RANGE = (1, 10)
 
-COMMON_FEATURES = SUPPORT_OSCILLATE | SUPPORT_SET_SPEED | SUPPORT_PRESET_MODE
+COMMON_FEATURES = (
+    FanEntityFeature.TURN_OFF
+    | FanEntityFeature.TURN_ON
+    | FanEntityFeature.OSCILLATE
+    | FanEntityFeature.SET_SPEED
+    | FanEntityFeature.PRESET_MODE
+)
 
 
 async def async_setup_entry(
@@ -67,27 +57,35 @@ async def async_setup_entry(
         entity = DysonPureCoolLinkEntity(device, name)
     elif isinstance(device, DysonPureCool):
         entity = DysonPureCoolEntity(device, name)
-    else:  # DysonPureHumidityCool
+    else:  # DysonPureHumidifyCool
         entity = DysonPureHumidifyCoolEntity(device, name)
     async_add_entities([entity])
 
     platform = entity_platform.current_platform.get()
+    assert platform
     platform.async_register_entity_service(
-        SERVICE_SET_TIMER, SET_TIMER_SCHEMA, "set_timer"
+        SERVICE_SET_TIMER, {vol.Required(ATTR_TIMER): cv.positive_int}, "set_timer"
     )
     if isinstance(device, DysonPureCool):
         platform.async_register_entity_service(
-            SERVICE_SET_ANGLE, SET_ANGLE_SCHEMA, "set_angle"
+            SERVICE_SET_ANGLE,
+            {
+                vol.Required(ATTR_ANGLE_LOW): cv.positive_int,
+                vol.Required(ATTR_ANGLE_HIGH): cv.positive_int,
+            },
+            "set_angle",
         )
 
 
 class DysonFanEntity(DysonEntity, FanEntity):
     """Dyson fan entity base class."""
 
+    _attr_name = None
+    _device: DysonFanDevice
     _MESSAGE_TYPE = MessageType.STATE
 
     @property
-    def is_on(self) -> bool:
+    def is_on(self):
         """Return if the fan is on."""
         return self._device.is_on
 
@@ -108,7 +106,7 @@ class DysonFanEntity(DysonEntity, FanEntity):
             return None
         if not self._device.is_on:
             return 0
-        return ranged_value_to_percentage(SPEED_RANGE, int(self._device.speed))
+        return ranged_value_to_percentage(SPEED_RANGE, self._device.speed)
 
     def set_percentage(self, percentage: int) -> None:
         """Set the speed percentage of the fan."""
@@ -121,7 +119,7 @@ class DysonFanEntity(DysonEntity, FanEntity):
         self._device.disable_auto_mode()
 
     @property
-    def preset_modes(self) -> List[str]:
+    def preset_modes(self) -> list[str]:
         """Return the preset modes supported."""
         return SUPPORTED_PRESET_MODES
 
@@ -145,7 +143,7 @@ class DysonFanEntity(DysonEntity, FanEntity):
         return self._device.oscillation
 
     @property
-    def supported_features(self) -> int:
+    def supported_features(self) -> FanEntityFeature:
         """Flag supported features."""
         return COMMON_FEATURES
 
@@ -192,10 +190,12 @@ class DysonPureCoolLinkEntity(DysonFanEntity):
 class DysonPureCoolEntity(DysonFanEntity):
     """Dyson Pure Cool entity."""
 
+    _device: DysonPureCool
+
     @property
-    def supported_features(self) -> int:
+    def supported_features(self) -> FanEntityFeature:
         """Flag supported features."""
-        return COMMON_FEATURES | SUPPORT_DIRECTION
+        return COMMON_FEATURES | FanEntityFeature.DIRECTION
 
     @property
     def current_direction(self) -> str:
@@ -215,12 +215,12 @@ class DysonPureCoolEntity(DysonFanEntity):
             raise ValueError(f"Invalid direction {direction}")
 
     @property
-    def angle_low(self) -> int:
+    def angle_low(self) -> int | None:
         """Return oscillation angle low."""
         return self._device.oscillation_angle_low
 
     @property
-    def angle_high(self) -> int:
+    def angle_high(self) -> int | None:
         """Return oscillation angle high."""
         return self._device.oscillation_angle_high
 
@@ -246,10 +246,12 @@ class DysonPureCoolEntity(DysonFanEntity):
 class DysonPureHumidifyCoolEntity(DysonFanEntity):
     """Dyson Pure Humidify+Cool entity."""
 
+    _device: DysonPureCoolBase
+
     @property
-    def supported_features(self) -> int:
+    def supported_features(self) -> FanEntityFeature:
         """Flag supported features."""
-        return COMMON_FEATURES | SUPPORT_DIRECTION
+        return COMMON_FEATURES | FanEntityFeature.DIRECTION
 
     @property
     def current_direction(self) -> str:

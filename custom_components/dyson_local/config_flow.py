@@ -4,10 +4,10 @@ import logging
 import threading
 from typing import Optional
 
-from libdyson import DEVICE_TYPE_NAMES, get_device, get_mqtt_info_from_wifi_info
-from libdyson.cloud import DysonDeviceInfo
-from libdyson.discovery import DysonDiscovery
-from libdyson.exceptions import (
+from .libdyson import DEVICE_TYPE_NAMES, get_device, get_mqtt_info_from_wifi_info
+from .libdyson.cloud import DysonDeviceInfo
+from .libdyson.discovery import DysonDiscovery
+from .libdyson.exceptions import (
     DysonException,
     DysonFailedToParseWifiInfo,
     DysonInvalidCredential,
@@ -161,6 +161,7 @@ class DysonLocalConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_host(self, info: Optional[dict] = None):
         """Handle step to set host."""
+        assert self._device_info
         errors = {}
         if info is not None:
             try:
@@ -211,7 +212,7 @@ class DysonLocalConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         device_type: str,
         name: str,
         host: Optional[str] = None,
-    ) -> Optional[str]:
+    ):
         """Try connect and return config entry data."""
         await self._async_try_connect(serial, credential, device_type, host)
         return {
@@ -231,6 +232,8 @@ class DysonLocalConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> None:
         """Try connect."""
         device = get_device(serial, credential, device_type)
+        if not device:
+            raise CannotFind
 
         # Find device using discovery
         if not host:
@@ -252,6 +255,7 @@ class DysonLocalConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if not succeed:
                 _LOGGER.debug("Discovery timed out")
                 raise CannotFind
+            assert host
 
         # Try connect to the device
         try:
